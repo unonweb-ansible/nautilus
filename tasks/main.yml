@@ -59,6 +59,12 @@
         state: present
         name: gpg
 
+    # assert
+    - name: Check {{ nautilus_scripts_path }}
+      ansible.builtin.assert:
+        that:
+        - nautilus_scripts_path.startswith('/home/' + nautilus_user)
+
     # mk subdirs
     - name: Mksubdirs for {{ nautilus_scripts }} in {{ nautilus_scripts_path }}
       become: true
@@ -86,6 +92,12 @@
   - when: nautilus_templates | length > 0
     block:
 
+    # assert
+    - name: Check {{ nautilus_templates_path }}
+      ansible.builtin.assert:
+        that:
+        - nautilus_templates_path.startswith('/home/' + nautilus_user)
+
     # mkdir templates
     - name: Mkdir {{ nautilus_templates_path }}
       become: true
@@ -96,7 +108,7 @@
         group: "{{ nautilus_user }}"
 
     # copy templates
-    - name: Copy templates
+    - name: Copy {{ nautilus_templates }} to {{ nautilus_templates_path }}
       become: true
       loop: "{{ nautilus_templates }}"
       ansible.builtin.copy:
