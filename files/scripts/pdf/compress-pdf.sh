@@ -20,8 +20,8 @@ function main {
 	fi
 
 	# Check if Ghostscript is installed
-	if ! GS=$(which gs); then
-		${ZENITY} --error --title="${ZENITY_TITLE}" --text="This script requires the ghostscript package, which is not installed. Please install it and try again."
+	if ! which gs; then
+		${ZENITY} --error --title="${ZENITY_TITLE}" --text="This script requires the 'ghostscript' package, which is not installed. Please install it and try again."
 		exit 1
 	fi
 
@@ -41,15 +41,37 @@ function main {
 		exit 1
 	fi
 
-	# Check if all the arguments are proper PDF files
-	for selected_path in "${@}"; do
-		# ignoring case for 'pdf'; as far as I know, the slash before (sth/pdf) is universal mimetype output. In most cases we can even expect 'application/pdf' (portability issues?).
-		if ! file --brief --mime-type "${selected_path}" | grep -i "/pdf"; then 
-			${ZENITY} --error --title="${ZENITY_TITLE}" --text="Dies ist kein PDF:\n${selected_path}\n\nBitte wähle nur PDFs aus!"
-			exit 1		
-		fi
-	done
-	
+	# Ask to select compression
+	local compression_lvl=$(zenity --list --title="Kompressions-Level" --text "Je höher, desto kleiner das Dokument,\naber desto niedrieger die Qualität" --radiolist --height 400 --width 300 \
+		--column "" \
+		--column "Level" \
+		FALSE 1 \
+		TRUE 2 \
+		FALSE 3
+	)
+
+	if [[ -z ${compression_lvl} ]]; then
+		echo "Error: No compression lvl set. Exiting."
+		exit 1
+	fi
+
+	case ${compression_lvl} in
+
+		1)
+			image_resolution=144
+			;;
+		2)
+			image_resolution=128
+			;;
+		3)
+			image_resolution=64
+			;;
+		*)
+			echo "ERROR: Compression selection failed"
+			exit 1
+			;;
+	esac
+
 	for selected_path in "${@}"; do
 		
 		local selected_name=$(basename "${selected_path}")
@@ -57,24 +79,31 @@ function main {
 		local out_basename=$(basename "${out_filename}")
 		local tmp_filename=tmp-${out_basename}
 
-		if [ -e ${tmp_filename} ]; then 
-			${ZENITY} --error --title="${ZENITY_TITLE}"
+		if [[ -e ${tmp_filename} ]]; then 
+			${ZENITY} --error --title="${ZENITY_TITLE}" --text "Temporary filename already exists: ${tmp_filename}"
 			exit 1
+		fi
+
+		# Check if it's a PDF file
+		# ignoring case for 'pdf'; as far as I know, the slash before (sth/pdf) is universal mimetype output. In most cases we can even expect 'application/pdf' (portability issues?).
+		if ! file --brief --mime-type "${selected_path}" | grep -i "/pdf"; then 
+			${ZENITY} --error --title="${ZENITY_TITLE}" --text="Dies ist kein PDF:\n${selected_path}\n\nDatei wird übersprungen!"
+			continue
 		fi
 
 		# Execute ghostscript while showing a progress bar
 		(
 			gs -q -dNOPAUSE -dBATCH -dSAFER \
 			-sDEVICE=pdfwrite \
-			-dCompatibilityLevel=1.3 \
+			-dCompatibilityLevel=1.4 \
 			-dPDFSETTINGS=/screen \
 			-dEmbedAllFonts=true -dSubsetFonts=true \
 			-dColorImageDownsampleType=/Bicubic \
-			-dColorImageResolution=144 \
+			-dColorImageResolution=${image_resolution} \
 			-dGrayImageDownsampleType=/Bicubic \
-			-dGrayImageResolution=144 \
+			-dGrayImageResolution=${image_resolution} \
 			-dMonoImageDownsampleType=/Bicubic \
-			-dMonoImageResolution=144 \
+			-dMonoImageResolution=${image_resolution} \
 			-sOutputFile=${tmp_filename} \
 			"${selected_path}" & echo -e "${!}\n"
 			# we output the pid so that it passes the pipe
