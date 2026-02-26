@@ -58,7 +58,6 @@ function main {
 		--title="Compress-PDF" \
 		--forms \
 		--text="Einstellungen" \
-		--height 400 --width 300 \
 		--add-combo="Bild-Qualität" \
 		--combo-values="36 dpi|48 dpi|72 dpi|144 dpi|" \
 		--add-combo="Farbmodus" \
@@ -71,8 +70,8 @@ function main {
 	fi
 
 	# Split the string into two parts
-	local img_res="${input_string%%|*}" # Get everything before the '|'
-	local color_mode="${input_string##*|}" # Get everything after the '|'
+	local img_res="${user_options%%|*}" # Get everything before the '|'
+	local color_mode="${user_options##*|}" # Get everything after the '|'
 
 	# Remove ' dpi' from img_res
 	img_res="${img_res/dpi/}"
@@ -85,16 +84,17 @@ function main {
 	img_res=${img_res#"${img_res%%[![:space:]]*}"}
 	color_mode=${color_mode#"${color_mode%%[![:space:]]*}"}
 
-	if ((DEBUG)); then
-		echo "img_res: ${img_res}"
-		echo "color_mode: ${color_mode}"
-	fi
-
 	# Set grayscale args
 	if [ "${color_mode}" = "Graustufen" ]; then
 		GRAY_SCALE_ARGS="-sProcessColorModel=DeviceGray -sColorConversionStrategy=Gray -dOverrideICC"
 	else
 		GRAY_SCALE_ARGS=""
+	fi
+	
+	if ((DEBUG)); then
+		echo "img_res: ${img_res}"
+		echo "color_mode: ${color_mode}"
+		echo "GRAY_SCALE_ARGS: ${GRAY_SCALE_ARGS}"
 	fi
 
 	# Loop over selected files
@@ -104,6 +104,12 @@ function main {
 		local out_filename=${selected_name%.*}${OUTPUT_SUFFIX}.${selected_name##*.}
 		local out_basename=$(basename "${out_filename}")
 		local tmp_filename=tmp-${out_basename}
+		
+		if ((DEBUG)); then
+		  echo "selected_name: ${selected_name}"
+		  echo "tmp_filename: ${tmp_filename}"
+		  echo "out_filename: ${out_filename}"
+	  fi
 
 		if [[ -e ${tmp_filename} ]]; then 
 			${ZENITY} --error --title="${ZENITY_TITLE}" --text "Temporary filename already exists: ${tmp_filename}"
@@ -141,14 +147,14 @@ function main {
 			-dMonoImageDownsampleThreshold="1.0" \
 			-dPreserveAnnots=false \
 			-sOutputFile=${tmp_filename} \
-			${GRAY_SCALE_ARGS} \			
+			${GRAY_SCALE_ARGS} \
 			"${selected_path}" & echo -e "${!}\n"
 			# we output the pid so that it passes the pipe
 			# the explicit linefeed starts the zenity progressbar pulsation
 		) | (
 			# the pipes create implicit subshells; marking them explicitly
 			read PIPED_PID
-			if ${ZENITY} --progress --pulsate --auto-close --title="${ZENITY_TITLE}" --text "Verarbeite Date:\n<b>${out_basename}</b>"; then
+			if ${ZENITY} --progress --pulsate --auto-close --title="${ZENITY_TITLE}" --text "Verarbeite Datei:\n<b>${out_basename}</b>"; then
 				# we go on to the next file as fast as possible (this subprocess survives the end of the script, so it is even safer)
 				mv -f "${tmp_filename}" "${out_filename}" &
 				# notify-send "Compress PDF" "${out_basename} "has been successfully compressed""
